@@ -1,0 +1,37 @@
+name: Windows
+
+on: workflow_dispatch
+
+env:
+  ARTIFACT_EXECUTABLE: itaxotools-abcd-validator-windows
+
+
+jobs:
+
+  build-executable:
+    name: Build Windows executable
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip pipenv
+          python -m pipenv install
+
+      - name: Make executable
+        run: pipenv run pyinstaller gui.spec
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_EXECUTABLE }}
+          path: dist/*.exe

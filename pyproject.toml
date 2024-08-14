@@ -1,0 +1,24 @@
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = [
+    "--import-mode=importlib",
+]
+
+[tool.ruff]
+ignore-init-module-imports = true
+extend-select = ["I"]
+line-length = 120
+
+[tool.ruff.lint.isort]
+known-first-party = ["itaxotools"]
+section-order = [
+    "future",
+    "pyqt",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.isort.sections]
+pyqt = ["PySide6"]
