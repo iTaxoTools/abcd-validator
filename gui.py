@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from PySide6 import QtCore, QtGui, QtWidgets
 
 import argparse
@@ -9,6 +11,21 @@ import skin
 from itaxotools.common.bindings import Binder, Property, PropertyObject, PropertyRef
 
 
+class Worker(QtCore.QThread):
+    finished = QtCore.Signal(list)
+
+    def __init__(self, model: Model, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model = model
+
+        app = QtCore.QCoreApplication.instance()
+        app.aboutToQuit.connect(self.terminate)
+
+    def run(self):
+        QtCore.QThread.sleep(1)
+        self.finished.emit([])
+
+
 class Model(PropertyObject):
     measurement_file_path = Property(Path, Path())
     specimen_file_path = Property(Path, Path())
@@ -16,6 +33,7 @@ class Model(PropertyObject):
     multimedia_folder_path = Property(Path, Path())
 
     ready = Property(bool, False)
+    busy = Property(bool, False)
 
     def __init__(self, args: dict):
         super().__init__()
@@ -24,6 +42,9 @@ class Model(PropertyObject):
         self.binder.bind(self.properties.multimedia_file_path, self.propagate_multimedia_path)
         for property in self.properties:
             self.binder.bind(property, self.update_ready)
+
+        self.worker = Worker(self)
+        self.worker.finished.connect(self.on_done)
 
     def set_properties_from_dict(self, args):
         for k, v in args.items():
@@ -49,6 +70,12 @@ class Model(PropertyObject):
 
     def start(self):
         print("START")
+        self.busy = True
+        self.worker.start()
+
+    def on_done(self, results: list):
+        self.busy = False
+        print("DONE", results)
 
 
 class ElidedLineEdit(QtWidgets.QLineEdit):
@@ -131,6 +158,7 @@ class Main(QtWidgets.QWidget):
         validate = BigPushButton("VALIDATE")
 
         self.binder.bind(self.model.properties.ready, validate.setEnabled)
+        self.binder.bind(self.model.properties.busy, self.set_busy)
         self.binder.bind(validate.clicked, self.model.start)
 
         layout = QtWidgets.QVBoxLayout()
@@ -195,6 +223,14 @@ class Main(QtWidgets.QWidget):
         if not filename:
             return
         property.set(Path(filename))
+
+    def set_busy(self, busy: bool):
+        self.setEnabled(not busy)
+        if busy:
+            cursor = QtGui.QCursor(QtCore.Qt.BusyCursor)
+            QtWidgets.QApplication.setOverrideCursor(cursor)
+        else:
+            QtWidgets.QApplication.restoreOverrideCursor()
 
 
 def parse_args():
