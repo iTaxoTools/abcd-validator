@@ -4,11 +4,66 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 import argparse
 import multiprocessing
+from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
 from typing import Callable
 
+from abcd_converter_gfbio_org.abcd_conversion import convert_csv_to_abcd
+from abcd_converter_gfbio_org.handlers import InOutHandler, Outputter
+
 import skin
 from itaxotools.common.bindings import Binder, Property, PropertyObject, PropertyRef
+
+
+class LogType(Enum):
+    Warning = auto()
+    Error = auto()
+
+
+@dataclass
+class LogEntry:
+    type: LogType
+    text: str
+
+    def __str__(self):
+        prefix = {
+            LogType.Warning: "\u26A0",
+            LogType.Error: "\u274C",
+        }[self.type]
+        return f"{prefix} {self.text}"
+
+
+class ListLogger(Outputter):
+    def __init__(self, reference: list[LogEntry], type: LogType):
+        self.reference = reference
+        self.type = type
+
+    def handle(self, description, content):
+        entry = LogEntry(self.type, str(description))
+        self.reference.append(entry)
+
+
+class LogModel(QtCore.QAbstractListModel):
+    def __init__(self):
+        super().__init__()
+        self.logs: list[LogEntry] = []
+
+    def set_logs(self, logs: list[LogEntry]):
+        self.beginResetModel()
+        self.logs = logs
+        self.endResetModel()
+
+    def data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            entry = self.logs[index.row()]
+            return str(entry)
+
+    def rowCount(self, parent=QtCore.QModelIndex()):
+        return len(self.logs)
+
+    def flags(self, index):
+        return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
 
 class Worker(QtCore.QThread):
@@ -22,11 +77,29 @@ class Worker(QtCore.QThread):
         app.aboutToQuit.connect(self.terminate)
 
     def run(self):
-        QtCore.QThread.sleep(1)
-        self.finished.emit([])
+        logs: list[str] = []
+
+        io_handler = InOutHandler(
+            verbose=False, out_file="result.xml", file_directory=str(self.model.multimedia_folder_path.resolve())
+        )
+        io_handler.resultFileHandler = Outputter()
+        io_handler.warning_handler = ListLogger(logs, LogType.Warning)
+        io_handler.errorHandler = ListLogger(logs, LogType.Error)
+        io_handler.logHandler = Outputter()
+
+        convert_csv_to_abcd(
+            str(self.model.specimen_file_path.resolve()),
+            str(self.model.measurement_file_path.resolve()),
+            str(self.model.multimedia_file_path.resolve()),
+            io_handler,
+        )
+
+        self.finished.emit(logs)
 
 
 class Model(PropertyObject):
+    logs = QtCore.Signal(list)
+
     measurement_file_path = Property(Path, Path())
     specimen_file_path = Property(Path, Path())
     multimedia_file_path = Property(Path, Path())
@@ -69,13 +142,12 @@ class Model(PropertyObject):
             self.multimedia_folder_path = path.parent
 
     def start(self):
-        print("START")
         self.busy = True
         self.worker.start()
 
-    def on_done(self, results: list):
+    def on_done(self, logs: list):
         self.busy = False
-        print("DONE", results)
+        self.logs.emit(logs)
 
 
 class ElidedLineEdit(QtWidgets.QLineEdit):
@@ -141,16 +213,132 @@ class BigPushButton(QtWidgets.QPushButton):
         return QtCore.QSize(hint.width(), hint.height() * 1.40)
 
 
+class LogEntryDelegate(QtWidgets.QStyledItemDelegate):
+    row_height = 20
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def paint(self, painter, option, index):
+        painter.save()
+
+        if option.state & QtWidgets.QStyle.State_Selected:
+            painter.fillRect(option.rect, option.palette.highlight())
+            painter.setPen(option.palette.light().color())
+        else:
+            painter.fillRect(option.rect, option.palette.base())
+            painter.setPen(option.palette.text().color())
+
+        text_rect = option.rect
+        text_rect -= QtCore.QMargins(6, 0, 6, 0)
+
+        text = index.data(QtCore.Qt.DisplayRole)
+
+        painter.drawText(text_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, text)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        text = index.data(QtCore.Qt.DisplayRole)
+        metrics = QtGui.QFontMetrics(option.font)
+        width = metrics.horizontalAdvance(text) + 24
+        return QtCore.QSize(width, self.row_height)
+
+
+class GrowingListView(QtWidgets.QListView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setItemDelegate(LogEntryDelegate(self))
+        self.height_slack = 12
+        self.lines_max = 12
+        self.lines_min = 2
+        self.max_width = 640
+
+        font = self.font()
+        font.setFamily("Courier New")
+        self.setFont(font)
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent):
+        if any(
+            (
+                event.key() == QtCore.Qt.Key_Backspace,
+                event.key() == QtCore.Qt.Key_Delete,
+            )
+        ):
+            selected = self.selectionModel().selectedIndexes()
+            if selected:
+                indices = [index.row() for index in selected]
+                self.requestDelete.emit(indices)
+        super().keyPressEvent(event)
+
+    def sizeHint(self):
+        model = self.model()
+        if not model:
+            return super().sizeHint()
+
+        width = 0
+        for row in range(model.rowCount()):
+            index = model.index(row, 0)
+            item_size_hint = self.sizeHintForIndex(index)
+            width = max(width, item_size_hint.width())
+        width = min(width, self.max_width)
+
+        height = self.getHeightHint() + self.height_slack
+        return QtCore.QSize(width, height)
+
+    def getHeightHint(self):
+        lines = self.model().rowCount() if self.model() else 0
+        lines = max(lines, self.lines_min)
+        lines = min(lines, self.lines_max)
+        height = LogEntryDelegate.row_height
+        return int(lines * height)
+
+    def resizeEvent(self, event):
+        self.setFixedWidth(self.sizeHint().width() + 24)
+        self.setFixedHeight(self.sizeHint().height() + 24)
+
+
+class SuccessDialog(QtWidgets.QMessageBox):
+    def __init__(self, parent: Main):
+        super().__init__(parent)
+        self.setWindowTitle(parent.title)
+        self.setIcon(QtWidgets.QMessageBox.Information)
+        self.setText("Validation against abcd-schema was successfull!")
+        self.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        self.setOptions(QtWidgets.QMessageBox.Option.DontUseNativeDialog)
+
+
+class FailureDialog(QtWidgets.QMessageBox):
+    def __init__(self, parent: Main, logs: LogModel):
+        super().__init__(parent)
+        self.setWindowTitle(parent.title)
+        self.setIcon(QtWidgets.QMessageBox.Warning)
+        self.setText("Problems were detected with the input files:")
+        self.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        self.setOptions(QtWidgets.QMessageBox.Option.DontUseNativeDialog)
+
+        self.list_view = GrowingListView()
+        self.list_view.setModel(logs)
+
+        layout: QtWidgets.QGridLayout = self.layout()
+        layout.setVerticalSpacing(12)
+        layout.setColumnMinimumWidth(2, 320)
+        layout.addWidget(self.list_view, 1, 2)
+
+
 class Main(QtWidgets.QWidget):
     def __init__(self, args: dict):
         super().__init__()
         self.title = "ABCD validator"
-        self.resize(540, 0)
+        self.resize(560, 0)
         self.setWindowFlags(QtCore.Qt.Window)
         self.setWindowTitle(self.title)
 
         self.model = Model(args)
+        self.logs = LogModel()
         self.binder = Binder()
+        self.success_dialog = SuccessDialog(self)
+        self.failure_dialog = FailureDialog(self, self.logs)
 
         label = QtWidgets.QLabel(" Check whether your CSV data is suitable for conversion into ABCD format:")
         label.setWordWrap(True)
@@ -159,6 +347,7 @@ class Main(QtWidgets.QWidget):
 
         self.binder.bind(self.model.properties.ready, validate.setEnabled)
         self.binder.bind(self.model.properties.busy, self.set_busy)
+        self.binder.bind(self.model.logs, self.report_logs)
         self.binder.bind(validate.clicked, self.model.start)
 
         layout = QtWidgets.QVBoxLayout()
@@ -231,6 +420,13 @@ class Main(QtWidgets.QWidget):
             QtWidgets.QApplication.setOverrideCursor(cursor)
         else:
             QtWidgets.QApplication.restoreOverrideCursor()
+
+    def report_logs(self, logs: list[LogEntry]):
+        if not logs:
+            self.success_dialog.exec()
+        else:
+            self.logs.set_logs(logs)
+            self.failure_dialog.exec()
 
 
 def parse_args():
