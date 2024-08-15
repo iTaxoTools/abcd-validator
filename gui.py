@@ -1,11 +1,10 @@
-"""GUI entry point"""
-
 from PySide6 import QtCore, QtGui, QtWidgets
 
 import multiprocessing
 from pathlib import Path
 from typing import Callable
 
+import skin
 from itaxotools.common.bindings import Binder, Property, PropertyObject, PropertyRef
 
 
@@ -14,6 +13,36 @@ class Model(PropertyObject):
     specimen_file_path = Property(Path, Path())
     multimedia_file_path = Property(Path, Path())
     multimedia_folder_path = Property(Path, Path())
+
+    ready = Property(bool, False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.binder = Binder()
+        self.binder.bind(self.properties.multimedia_file_path, self.propagate_multimedia_path)
+        for property in self.properties:
+            self.binder.bind(property, self.update_ready)
+
+    def check_ready(self):
+        for path in [
+            self.measurement_file_path,
+            self.specimen_file_path,
+            self.multimedia_file_path,
+            self.multimedia_folder_path,
+        ]:
+            if path == Path():
+                return False
+        return True
+
+    def update_ready(self):
+        self.ready = self.check_ready()
+
+    def propagate_multimedia_path(self, path: Path):
+        if path != Path():
+            self.multimedia_folder_path = path.parent
+
+    def start(self):
+        print("START")
 
 
 class ElidedLineEdit(QtWidgets.QLineEdit):
@@ -65,6 +94,19 @@ class ElidedLineEdit(QtWidgets.QLineEdit):
         self.setText(text)
 
 
+class BigPushButton(QtWidgets.QPushButton):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        font = self.font()
+        font.setPointSize(font.pointSize() * 1.20)
+        font.setLetterSpacing(QtGui.QFont.AbsoluteSpacing, 1)
+        self.setFont(font)
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        return QtCore.QSize(hint.width(), hint.height() * 1.40)
+
+
 class Main(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -76,12 +118,27 @@ class Main(QtWidgets.QWidget):
         self.model = Model()
         self.binder = Binder()
 
-        layout = self.draw_input_fields()
+        label = QtWidgets.QLabel(" Check whether your CSV data is suitable for conversion into ABCD format:")
+        label.setWordWrap(True)
+        fields = self.draw_input_fields()
+        validate = BigPushButton("VALIDATE")
+
+        self.binder.bind(self.model.properties.ready, validate.setEnabled)
+        self.binder.bind(validate.clicked, self.model.start)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(8, 16, 8, 8)
+        layout.setSpacing(16)
+        layout.addWidget(label)
+        layout.addLayout(fields)
+        layout.addWidget(validate)
         self.setLayout(layout)
 
     def draw_input_fields(self):
         layout = QtWidgets.QGridLayout()
+        layout.setContentsMargins(24, 8, 24, 8)
         layout.setHorizontalSpacing(16)
+        layout.setVerticalSpacing(8)
 
         self.draw_input_field_row(
             layout, 0, "Measurement file", self.model.properties.measurement_file_path, self.show_file_dialog
@@ -132,6 +189,7 @@ class Main(QtWidgets.QWidget):
 
 def run():
     app = QtWidgets.QApplication()
+    skin.apply(app)
 
     main = Main()
     main.show()
