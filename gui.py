@@ -28,7 +28,7 @@ class LogEntry:
 
     def __str__(self):
         prefix = {
-            LogType.Warning: "\u26A0",
+            LogType.Warning: "\u2757",
             LogType.Error: "\u274C",
         }[self.type]
         return f"{prefix} {self.text}"
@@ -222,19 +222,35 @@ class LogEntryDelegate(QtWidgets.QStyledItemDelegate):
     def paint(self, painter, option, index):
         painter.save()
 
+        text_rect = QtCore.QRect(option.rect)
+        text_rect -= QtCore.QMargins(6, 0, 6, 0)
+
         if option.state & QtWidgets.QStyle.State_Selected:
             painter.fillRect(option.rect, option.palette.highlight())
-            painter.setPen(option.palette.light().color())
+
+            text = index.data(QtCore.Qt.DisplayRole)
+
+            pixmap = QtGui.QPixmap(text_rect.width(), text_rect.height())
+            pixmap.fill(QtCore.Qt.transparent)
+
+            pixmap_painter = QtGui.QPainter(pixmap)
+            pixmap_painter.setRenderHint(QtGui.QPainter.Antialiasing)
+            pixmap_painter.setPen(option.palette.light().color())
+            pixmap_painter.setFont(painter.font())
+            pixmap_painter.drawText(pixmap.rect(), QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, text)
+            pixmap_painter.end()
+
+            pixmap = self.convert_pixmap_to_white(pixmap)
+            painter.setRenderHint(QtGui.QPainter.Antialiasing)
+            painter.drawPixmap(text_rect, pixmap)
+
         else:
             painter.fillRect(option.rect, option.palette.base())
             painter.setPen(option.palette.text().color())
 
-        text_rect = option.rect
-        text_rect -= QtCore.QMargins(6, 0, 6, 0)
+            text = index.data(QtCore.Qt.DisplayRole)
 
-        text = index.data(QtCore.Qt.DisplayRole)
-
-        painter.drawText(text_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, text)
+            painter.drawText(text_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, text)
 
         painter.restore()
 
@@ -243,6 +259,21 @@ class LogEntryDelegate(QtWidgets.QStyledItemDelegate):
         metrics = QtGui.QFontMetrics(option.font)
         width = metrics.horizontalAdvance(text) + 24
         return QtCore.QSize(width, self.row_height)
+
+    @staticmethod
+    def convert_pixmap_to_white(pixmap: QtGui.QPixmap):
+        image = pixmap.toImage()
+
+        for y in range(image.height()):
+            for x in range(image.width()):
+                color = image.pixelColor(x, y)
+                alpha = color.alpha()
+                if alpha != 0:
+                    color.setRgb(255, 255, 255)
+                    color.setAlpha(alpha)
+                    image.setPixelColor(x, y, color)
+
+        return QtGui.QPixmap.fromImage(image)
 
 
 class GrowingListView(QtWidgets.QListView):
