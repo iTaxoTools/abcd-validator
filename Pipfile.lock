@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c00f0110f92e4608535d3ca65db8db8937d5ea65e1ac1bced9dd24e9e911fa59"
+            "sha256": "559e446864a45b86fe4297374798cb7e2acc60b559a9f9f4493eb7faaae726f8"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -88,6 +88,15 @@
             ],
             "markers": "python_version >= '3.8'",
             "version": "==2.6.0"
+        },
+        "itaxotools-common": {
+            "hashes": [
+                "sha256:655b1661f9c50d7380ce8d94c0e3b7868c1886c6090b9a978a404fa5a68513fd",
+                "sha256:91bfddbcd6ef862a0c44585cf069dcfb29239801f3897f4127658acccdb48494"
+            ],
+            "index": "abcd",
+            "markers": "python_version < '4' and python_full_version >= '3.10.2'",
+            "version": "==0.3.3"
         },
         "nodeenv": {
             "hashes": [
