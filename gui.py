@@ -1,5 +1,6 @@
 from PySide6 import QtCore, QtGui, QtWidgets
 
+import argparse
 import multiprocessing
 from pathlib import Path
 from typing import Callable
@@ -16,12 +17,17 @@ class Model(PropertyObject):
 
     ready = Property(bool, False)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, args: dict):
+        super().__init__()
+        self.set_properties_from_dict(args)
         self.binder = Binder()
         self.binder.bind(self.properties.multimedia_file_path, self.propagate_multimedia_path)
         for property in self.properties:
             self.binder.bind(property, self.update_ready)
+
+    def set_properties_from_dict(self, args):
+        for k, v in args.items():
+            self.properties[k].set(Path(v).resolve())
 
     def check_ready(self):
         for path in [
@@ -50,6 +56,7 @@ class ElidedLineEdit(QtWidgets.QLineEdit):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setTextMargins(4, 0, 12, 0)
         self.setReadOnly(True)
         self.placeholder_text = "---"
         self.full_text = ""
@@ -85,7 +92,7 @@ class ElidedLineEdit(QtWidgets.QLineEdit):
 
     def updateElidedText(self):
         metrics = QtGui.QFontMetrics(self.font())
-        length = self.width() - self.textMargins().left() - self.textMargins().right() - 16
+        length = self.width() - self.textMargins().left() - self.textMargins().right() - 8
         elided_text = metrics.elidedText(self.full_text, QtCore.Qt.ElideLeft, length)
         QtWidgets.QLineEdit.setText(self, elided_text)
 
@@ -108,14 +115,14 @@ class BigPushButton(QtWidgets.QPushButton):
 
 
 class Main(QtWidgets.QWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, args: dict):
+        super().__init__()
         self.title = "ABCD validator"
         self.resize(540, 0)
         self.setWindowFlags(QtCore.Qt.Window)
         self.setWindowTitle(self.title)
 
-        self.model = Model()
+        self.model = Model(args)
         self.binder = Binder()
 
         label = QtWidgets.QLabel(" Check whether your CSV data is suitable for conversion into ABCD format:")
@@ -133,6 +140,9 @@ class Main(QtWidgets.QWidget):
         layout.addLayout(fields)
         layout.addWidget(validate)
         self.setLayout(layout)
+
+        self.setFixedHeight(self.sizeHint().height())
+        self.setMinimumWidth(self.sizeHint().width() + 100)
 
     def draw_input_fields(self):
         layout = QtWidgets.QGridLayout()
@@ -187,11 +197,25 @@ class Main(QtWidgets.QWidget):
         property.set(Path(filename))
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--measurement_file", "-m", type=str)
+    parser.add_argument("--specimen_file", "-s", type=str)
+    parser.add_argument("--multimedia_file", "-x", type=str)
+    parser.add_argument("--multimedia_folder", "-f", type=str)
+    args = parser.parse_args()
+
+    return {f"{k}_path": v for k, v in vars(args).items() if v is not None}
+
+
 def run():
     app = QtWidgets.QApplication()
     skin.apply(app)
 
-    main = Main()
+    args = parse_args()
+
+    main = Main(args)
     main.show()
 
     app.exec()
