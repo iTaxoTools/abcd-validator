@@ -8,6 +8,7 @@ from typing import Callable
 from itaxotools.common.bindings import Binder, PropertyRef
 
 from .model import LogModel, Model
+from .resources import get_logo_icon, get_logo_pixmap
 from .types import LogEntry
 from .widgets import BigPushButton, ElidedLineEdit, FailureDialog, LongLabel, SuccessDialog
 
@@ -16,8 +17,9 @@ class Main(QtWidgets.QWidget):
     def __init__(self, args: dict):
         super().__init__()
         self.title = "ABCD validator"
-        self.resize(560, 0)
+        self.resize(640, 0)
         self.setWindowFlags(QtCore.Qt.Window)
+        self.setWindowIcon(get_logo_icon())
         self.setWindowTitle(self.title)
 
         self.model = Model(args)
@@ -25,6 +27,9 @@ class Main(QtWidgets.QWidget):
         self.binder = Binder()
         self.success_dialog = SuccessDialog(self)
         self.failure_dialog = FailureDialog(self, self.logs)
+
+        logo = QtWidgets.QLabel()
+        logo.setPixmap(get_logo_pixmap())
 
         label = LongLabel(
             "Test whether your tables with specimen-based taxonomic data "
@@ -36,6 +41,12 @@ class Main(QtWidgets.QWidget):
             "Read more about the ABCD schema here: "
             '<a href="https://abcd.tdwg.org">https://abcd.tdwg.org</a>'
         )
+
+        header = QtWidgets.QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.addWidget(logo)
+        header.addWidget(label, 1)
+
         fields = self.draw_input_fields()
         validate = BigPushButton("VALIDATE")
 
@@ -47,13 +58,13 @@ class Main(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
-        layout.addWidget(label)
+        layout.addLayout(header)
         layout.addLayout(fields)
         layout.addWidget(validate)
         self.setLayout(layout)
 
-        self.setFixedHeight(self.sizeHint().height())
         self.setMinimumWidth(self.sizeHint().width() + 100)
+        self.setFixedHeight(fields.sizeHint().height() + 72 + 96)
 
     def draw_input_fields(self):
         layout = QtWidgets.QGridLayout()
