@@ -9,7 +9,7 @@ runs:
     - name: Build using pyinstaller
       shell: bash
       run: |
-        VERSION=$(python -m setuptools_scm)
+        VERSION=$(pipenv run python -m setuptools_scm)
         VERSION=${VERSION%%+*}
         PLAT=$(echo ${{ runner.os }} | tr '[:upper:]' '[:lower:]')
         ARCH=$(echo ${{ runner.arch }} | tr '[:upper:]' '[:lower:]')
