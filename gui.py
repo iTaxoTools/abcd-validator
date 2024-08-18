@@ -79,9 +79,7 @@ class Worker(QtCore.QThread):
     def run(self):
         logs: list[str] = []
 
-        io_handler = InOutHandler(
-            verbose=False, out_file="result.xml", file_directory=str(self.model.multimedia_folder_path.resolve())
-        )
+        io_handler = InOutHandler(verbose=False, out_file="result.xml", file_directory=str(self.model.multimedia_folder_path.resolve()))
         io_handler.resultFileHandler = Outputter()
         io_handler.warning_handler = ListLogger(logs, LogType.Warning)
         io_handler.errorHandler = ListLogger(logs, LogType.Error)
@@ -357,6 +355,36 @@ class FailureDialog(QtWidgets.QMessageBox):
         layout.addWidget(self.list_view, 1, 2)
 
 
+class LongLabel(QtWidgets.QLabel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse | QtCore.Qt.TextBrowserInteraction)
+        self.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+        self.setStyleSheet("LongLabel {padding-left: 4px;}")
+        self.setTextFormat(QtCore.Qt.RichText)
+        self.setOpenExternalLinks(True)
+        self.setWordWrap(True)
+
+        action = QtGui.QAction("&Copy", self)
+        action.triggered.connect(self.copy)
+        self.addAction(action)
+
+        action = QtGui.QAction(self)
+        action.setSeparator(True)
+        self.addAction(action)
+
+        action = QtGui.QAction("Select &All", self)
+        action.triggered.connect(self.select)
+        self.addAction(action)
+
+    def copy(self):
+        text = self.selectedText()
+        QtWidgets.QApplication.clipboard().setText(text)
+
+    def select(self):
+        self.setSelection(0, len(self.text()))
+
+
 class Main(QtWidgets.QWidget):
     def __init__(self, args: dict):
         super().__init__()
@@ -371,8 +399,16 @@ class Main(QtWidgets.QWidget):
         self.success_dialog = SuccessDialog(self)
         self.failure_dialog = FailureDialog(self, self.logs)
 
-        label = QtWidgets.QLabel(" Check whether your CSV data is suitable for conversion into ABCD format:")
-        label.setWordWrap(True)
+        label = LongLabel(
+            "Test whether your tables with specimen-based taxonomic data "
+            "and associated files are correctly structured and named to be "
+            "uploaded to a repository. "
+            "Table column headers will be checked against the standards of "
+            "ABCD (Access to Biological Collections Data). "
+            "<br><br>"
+            "Read more about the ABCD schema here: "
+            '<a href="https://abcd.tdwg.org">https://abcd.tdwg.org</a>'
+        )
         fields = self.draw_input_fields()
         validate = BigPushButton("VALIDATE")
 
@@ -382,8 +418,8 @@ class Main(QtWidgets.QWidget):
         self.binder.bind(validate.clicked, self.model.start)
 
         layout = QtWidgets.QVBoxLayout()
-        layout.setContentsMargins(8, 16, 8, 8)
-        layout.setSpacing(16)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
         layout.addWidget(label)
         layout.addLayout(fields)
         layout.addWidget(validate)
@@ -398,24 +434,15 @@ class Main(QtWidgets.QWidget):
         layout.setHorizontalSpacing(16)
         layout.setVerticalSpacing(8)
 
-        self.draw_input_field_row(
-            layout, 0, "Measurement file", self.model.properties.measurement_file_path, self.show_file_dialog
-        )
-        self.draw_input_field_row(
-            layout, 1, "Specimen file", self.model.properties.specimen_file_path, self.show_file_dialog
-        )
-        self.draw_input_field_row(
-            layout, 2, "Multimedia file", self.model.properties.multimedia_file_path, self.show_file_dialog
-        )
-        self.draw_input_field_row(
-            layout, 3, "Multimedia folder", self.model.properties.multimedia_folder_path, self.show_folder_dialog
-        )
+        properties = self.model.properties
+        self.draw_input_field_row(layout, 0, "Specimen table", properties.specimen_file_path, self.show_file_dialog)
+        self.draw_input_field_row(layout, 1, "Measurement table", properties.measurement_file_path, self.show_file_dialog)
+        self.draw_input_field_row(layout, 2, "Multimedia file table", properties.multimedia_file_path, self.show_file_dialog)
+        self.draw_input_field_row(layout, 3, "Folder with multimedia files", properties.multimedia_folder_path, self.show_folder_dialog)
 
         return layout
 
-    def draw_input_field_row(
-        self, layout: QtWidgets.QGridLayout, row: int, text: str, property: PropertyRef, method: Callable
-    ):
+    def draw_input_field_row(self, layout: QtWidgets.QGridLayout, row: int, text: str, property: PropertyRef, method: Callable):
         label = QtWidgets.QLabel(text + ":")
         field = ElidedLineEdit()
         button = QtWidgets.QPushButton("Browse")
