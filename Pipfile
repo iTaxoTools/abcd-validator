@@ -14,3 +14,10 @@ pyside6 = "*"
 pre-commit = "*"
 pyinstaller = "*"
 itaxotools-common = "*"
+itaxotools-abcd-validator = {file = ".", editable = true}
+setuptools-scm = "*"
+
+[dev-packages]
+pyinstaller = "*"
+pytest = "*"
+ruff = "*"

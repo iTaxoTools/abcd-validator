@@ -1,8 +1,51 @@
-[tool.pytest.ini_options]
-pythonpath = "."
-addopts = [
-    "--import-mode=importlib",
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "itaxotools-abcd-validator"
+dynamic = ["version"]
+description = "A graphical user interface for checking whether your data is suitable for conversion into the ABCD format"
+readme = "README.md"
+requires-python = ">=3.10.2, <4"
+keywords = []
+authors = [
+    { name = "Stefanos Patmanidis", email = "stefanpatman91@gmail.com" },
 ]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = [
+    "itaxotools-common",
+    "pyside6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "setuptools-scm",
+    "pre-commit",
+    "ruff",
+    "pyinstaller",
+]
+
+[project.scripts]
+abcd-validator = "itaxotools.abcd_validator.__main__:run"
+
+[project.urls]
+Homepage = "https://itaxotools.org/"
+Source = "https://github.com/iTaxoTools/abcd-validator"
+
+[tool.setuptools.packages.find]
+namespaces = true
+where = ["src"]
+
+[tool.setuptools_scm]
 
 [tool.ruff]
 ignore-init-module-imports = true

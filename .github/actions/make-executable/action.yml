@@ -1,0 +1,16 @@
+name: Build a Windows executable
+description: |
+  Create a single .exe self-extracting binary
+  Tags must be pre-fetched and pipenv must be installed.
+
+runs:
+  using: composite
+  steps:
+    - name: Build using pyinstaller
+      shell: bash
+      run: |
+        VERSION=$(python -m setuptools_scm)
+        VERSION=${VERSION%%+*}
+        PLAT=$(echo ${{ runner.os }} | tr '[:upper:]' '[:lower:]')
+        ARCH=$(echo ${{ runner.arch }} | tr '[:upper:]' '[:lower:]')
+        pipenv run bash ./tools/make-executable.sh $VERSION $PLAT $ARCH unsigned

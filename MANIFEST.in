@@ -1,0 +1,7 @@
+# Include project info
+include README.md
+include LICENSE.txt
+include pyproject.toml
+
+# Include data files
+include src/itaxotools/abcd_validator/resources/*
