@@ -16,12 +16,15 @@ class LogEntry:
     type: LogType
     text: str
 
-    def __str__(self):
+    def __str__(self) -> str:
         prefix = {
             LogType.Warning: "\u2757",
             LogType.Error: "\u274C",
         }[self.type]
         return f"{prefix} {self.text}"
+
+    def to_text(self) -> str:
+        return f"{self.type.name}: {self.text}"
 
 
 class ListLogger(Outputter):

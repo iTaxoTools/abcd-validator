@@ -3,11 +3,12 @@ from __future__ import annotations
 from PySide6 import QtCore
 
 from pathlib import Path
+from typing import Iterator
 
 from abcd_converter_gfbio_org.abcd_conversion import convert_csv_to_abcd
 from abcd_converter_gfbio_org.handlers import InOutHandler, Outputter
 
-from itaxotools.common.bindings import Binder, Property, PropertyObject
+from itaxotools.common.bindings import Binder, Instance, Property, PropertyObject
 
 from .types import ListLogger, LogEntry, LogType
 
@@ -62,14 +63,20 @@ class LogModel(QtCore.QAbstractListModel):
     def flags(self, index):
         return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
 
+    def get_log_lines(self) -> Iterator[str]:
+        for log in self.logs:
+            yield log.to_text()
+
 
 class Model(PropertyObject):
-    logs = QtCore.Signal(list)
+    report_logs = QtCore.Signal(bool)
 
-    measurement_file_path = Property(Path, Path())
     specimen_file_path = Property(Path, Path())
+    measurement_file_path = Property(Path, Path())
     multimedia_file_path = Property(Path, Path())
     multimedia_folder_path = Property(Path, Path())
+
+    logs = Property(LogModel, Instance)
 
     ready = Property(bool, False)
     busy = Property(bool, False)
@@ -111,6 +118,12 @@ class Model(PropertyObject):
         self.busy = True
         self.worker.start()
 
-    def on_done(self, logs: list):
+    def on_done(self, logs: list[LogEntry]):
         self.busy = False
-        self.logs.emit(logs)
+        self.logs.set_logs(logs)
+        self.report_logs.emit(bool(logs))
+
+    def save_logs(self, path: Path):
+        with open(path, "w") as file:
+            for line in self.logs.get_log_lines():
+                print(line, file=file)

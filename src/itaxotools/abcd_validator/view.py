@@ -7,9 +7,8 @@ from typing import Callable
 
 from itaxotools.common.bindings import Binder, PropertyRef
 
-from .model import LogModel, Model
+from .model import Model
 from .resources import get_logo_icon, get_logo_pixmap
-from .types import LogEntry
 from .widgets import BigPushButton, ElidedLineEdit, FailureDialog, LongLabel, SuccessDialog
 
 
@@ -23,10 +22,9 @@ class Main(QtWidgets.QWidget):
         self.setWindowTitle(self.title)
 
         self.model = Model(args)
-        self.logs = LogModel()
         self.binder = Binder()
         self.success_dialog = SuccessDialog(self)
-        self.failure_dialog = FailureDialog(self, self.logs)
+        self.failure_dialog = FailureDialog(self, self.model.logs)
 
         logo = QtWidgets.QLabel()
         logo.setPixmap(get_logo_pixmap())
@@ -52,7 +50,7 @@ class Main(QtWidgets.QWidget):
 
         self.binder.bind(self.model.properties.ready, validate.setEnabled)
         self.binder.bind(self.model.properties.busy, self.set_busy)
-        self.binder.bind(self.model.logs, self.report_logs)
+        self.binder.bind(self.model.report_logs, self.report_logs)
         self.binder.bind(validate.clicked, self.model.start)
 
         layout = QtWidgets.QVBoxLayout()
@@ -117,9 +115,19 @@ class Main(QtWidgets.QWidget):
         else:
             QtWidgets.QApplication.restoreOverrideCursor()
 
-    def report_logs(self, logs: list[LogEntry]):
+    def report_logs(self, logs: bool):
         if not logs:
             self.success_dialog.exec()
         else:
-            self.logs.set_logs(logs)
-            self.failure_dialog.exec()
+            button = self.failure_dialog.exec()
+
+            if button == QtWidgets.QMessageBox.Save:
+                filename, _ = QtWidgets.QFileDialog.getSaveFileName(
+                    parent=self,
+                    caption=f"{self.title} - Save logs",
+                    dir=str(self.model.specimen_file_path.with_suffix(".txt").resolve()),
+                    filter="Text Files (*.txt)",
+                )
+                if not filename:
+                    return
+                self.model.save_logs(Path(filename))

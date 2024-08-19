@@ -189,7 +189,7 @@ class GrowingListView(QtWidgets.QListView):
 class SuccessDialog(QtWidgets.QMessageBox):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setWindowTitle(parent.title)
+        self.setWindowTitle(f"{parent.title} - Success")
         self.setIcon(QtWidgets.QMessageBox.Information)
         self.setText("Validation against abcd-schema was successfull!")
         self.setStandardButtons(QtWidgets.QMessageBox.Ok)
@@ -199,10 +199,10 @@ class SuccessDialog(QtWidgets.QMessageBox):
 class FailureDialog(QtWidgets.QMessageBox):
     def __init__(self, parent, logs: LogModel):
         super().__init__(parent)
-        self.setWindowTitle(parent.title)
+        self.setWindowTitle(f"{parent.title} - Failure")
         self.setIcon(QtWidgets.QMessageBox.Warning)
         self.setText("Problems were detected with the input files:")
-        self.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        self.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Save)
         self.setOptions(QtWidgets.QMessageBox.Option.DontUseNativeDialog)
 
         self.list_view = GrowingListView()
